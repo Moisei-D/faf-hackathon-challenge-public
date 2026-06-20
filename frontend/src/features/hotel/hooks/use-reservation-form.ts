@@ -36,9 +36,15 @@ export function useReservationForm() {
     },
     onSuccess: (reservation) => {
       setConfirmed(reservation);
-      queryClient.invalidateQueries({
-        queryKey: [...HOTEL_KEYS.RESERVATION],
-      });
+      queryClient.setQueryData<Reservation>(
+        [...HOTEL_KEYS.RESERVATION, reservation.guest_id],
+        reservation
+      );
+      queryClient.setQueryData<Reservation[]>(
+        [...HOTEL_KEYS.HISTORY, reservation.guest_id],
+        (history) => (history ? [reservation, ...history] : [reservation])
+      );
+      queryClient.invalidateQueries({ queryKey: [...HOTEL_KEYS.HISTORY, reservation.guest_id] });
       queryClient.invalidateQueries({ queryKey: [...HOTEL_KEYS.ROOMS] });
     },
     onError: (error) => {

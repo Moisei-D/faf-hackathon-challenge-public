@@ -8,9 +8,11 @@ import { NotLandedGate } from "@/features/map/components/not-landed-gate";
 import { useLanded } from "@/features/airport/hooks/use-airport";
 import { useReservationForm } from "@/features/hotel/hooks/use-reservation-form";
 import { useActiveReservation } from "@/features/hotel/hooks/use-active-reservation";
+import { useReservationHistory } from "@/features/hotel/hooks/use-reservation-history";
 import { ReservationForm } from "@/features/hotel/components/reservation-form";
 import { ReservationResult } from "@/features/hotel/components/reservation-result";
 import { ActiveReservationCard } from "@/features/hotel/components/active-reservation-card";
+import { ReservationHistory } from "@/features/hotel/components/reservation-history";
 import { HotelAdminRoomSummary } from "@/features/hotel/components/hotel-admin-room-summary";
 
 export function HotelPanel() {
@@ -23,6 +25,8 @@ export function HotelPanel() {
     useActiveReservation();
   const { form, onSubmit, confirmed, resetConfirmed, isSubmitting } =
     useReservationForm();
+  const { reservations, rebook, rebookingId } = useReservationHistory();
+  const hasActiveReservation = Boolean(reservation);
 
   if (isAdmin) {
     return (
@@ -35,11 +39,11 @@ export function HotelPanel() {
 
   if (!guest) return null;
 
+  if (!landed) return <NotLandedGate />;
+
   return (
-    <>
-      {!landed ? (
-        <NotLandedGate />
-      ) : isLoading ? (
+    <div className="flex flex-col gap-4">
+      {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Spinner className="size-6" />
         </div>
@@ -67,6 +71,18 @@ export function HotelPanel() {
           )}
         </div>
       )}
-    </>
+
+      {reservations.length > 0 && (
+        <>
+          <Separator />
+          <ReservationHistory
+            reservations={reservations}
+            onRebook={rebook}
+            rebookingId={rebookingId}
+            hasActiveReservation={hasActiveReservation}
+          />
+        </>
+      )}
+    </div>
   );
 }

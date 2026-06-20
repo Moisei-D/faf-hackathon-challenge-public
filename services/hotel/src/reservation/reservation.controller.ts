@@ -16,6 +16,11 @@ export class ReservationController {
     return this.reservationService.findActiveByGuestId(guestId);
   }
 
+  @Get('by-guest/:guest_id/history')
+  findAllByGuestId(@Param('guest_id') guestId: string) {
+    return this.reservationService.findAllByGuestId(guestId);
+  }
+
   @Get(':id')
   findById(@Param('id') id: string) {
     return this.reservationService.findById(id);
