@@ -95,12 +95,27 @@ def _assemble(
     if guest_id:
         system_prompt += f"\nThe current guest's ID is: {guest_id}\n"
 
-    user_msg = {"role": "user", "content": mask_profanity(message)}
+    masked = mask_profanity(message)
     messages = [{"role": "system", "content": system_prompt}]
     if history:
-        messages.extend(history)
-    messages.append(user_msg)
-    return messages, [user_msg]
+        # Stored messages may carry extra metadata (e.g. "censored"); send the
+        # LLM only the fields it understands.
+        messages.extend(_for_llm(m) for m in history)
+    messages.append({"role": "user", "content": masked})
+
+    # Persisted copy records whether the filter actually masked a word, so the
+    # admin "censored" metric reflects the filter's action — not a stray '*'.
+    stored_user_msg = {
+        "role": "user",
+        "content": masked,
+        "censored": masked != message,
+    }
+    return messages, [stored_user_msg]
+
+
+def _for_llm(message: dict) -> dict:
+    """Drop persistence-only metadata before sending a message to the LLM."""
+    return {k: v for k, v in message.items() if k != "censored"}
 
 
 def _normalize_calls(tool_calls) -> list[dict]:
