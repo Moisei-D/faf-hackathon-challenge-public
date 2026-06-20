@@ -10,19 +10,51 @@ MASK_CHAR = "*"
 # to the curated default when unset.
 PROFANITY_WORDS = [w.strip() for w in settings.profanity_words.split(",") if w.strip()]
 
-# Match the stop list as a raw substring alternation, longest-first so multi-letter
-# words win over their prefixes. Case-insensitive so "ASS" masks the same as "ass".
-_PATTERN = re.compile(
-    "|".join(re.escape(w) for w in sorted(PROFANITY_WORDS, key=len, reverse=True)),
-    re.IGNORECASE,
-)
+# Common letter-swap / leetspeak substitutions, so "a$$" and "sh1t" are caught.
+# Letters with no common swap match themselves.
+_LEET = {
+    "a": "[a4@]",
+    "b": "[b8]",
+    "e": "[e3]",
+    "i": "[i1!|]",
+    "l": "[l1|]",
+    "o": "[o0]",
+    "s": "[s5$]",
+    "t": "[t7+]",
+}
+
+
+def _leetify(word: str) -> str:
+    return "".join(_LEET.get(ch.lower(), re.escape(ch)) for ch in word)
+
+
+# Match a swear (or a leet variant) only when it stands on its own — not when it
+# sits inside a longer word. The letter look-arounds are what stop "ass" from
+# matching inside "passport" / "assertive", or "hell" inside "hello".
+if PROFANITY_WORDS:
+    _PATTERN = re.compile(
+        r"(?<![a-zA-Z])(?:"
+        + "|".join(_leetify(w) for w in sorted(PROFANITY_WORDS, key=len, reverse=True))
+        + r")(?![a-zA-Z])",
+        re.IGNORECASE,
+    )
+else:
+    _PATTERN = None
+
+
+def _mask(match: "re.Match[str]") -> str:
+    token = match.group(0)
+    # A token with no letters (e.g. a bare number like "455") isn't profanity.
+    if any(ch.isalpha() for ch in token):
+        return MASK_CHAR * len(token)
+    return token
 
 
 def mask_profanity(text: str) -> str:
     """Mask profane words in user-supplied text, preserving length with '*'."""
-    if not text:
+    if not text or _PATTERN is None:
         return text
-    return _PATTERN.sub(lambda m: MASK_CHAR * len(m.group(0)), text)
+    return _PATTERN.sub(_mask, text)
 
 
 def contains_mask(text) -> bool:
