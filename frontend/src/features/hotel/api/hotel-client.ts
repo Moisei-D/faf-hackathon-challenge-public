@@ -19,8 +19,13 @@ export function postReservation(
   return api.hotel.post(ReservationSchema, "/reservation", body);
 }
 
-export function getReservationByGuest(guestId: string): Promise<Reservation> {
-  return api.hotel.get(ReservationSchema, `/reservation/by-guest/${guestId}`);
+export function getReservationByGuest(
+  guestId: string
+): Promise<Reservation | null> {
+  return api.hotel.getOrNull(
+    ReservationSchema,
+    `/reservation/by-guest/${guestId}`
+  );
 }
 
 export function cancelReservation(

@@ -63,8 +63,30 @@ function createJsonApi(basePath = "") {
     }
   }
 
+  // Like request, but a 404 resolves to null instead of throwing — for
+  // lookups where "not found" is a normal, expected result.
+  async function requestOrNull<T>(
+    schema: ZodType<T>,
+    config: AxiosRequestConfig
+  ): Promise<T | null> {
+    try {
+      const { data } = await instance.request<unknown>(config);
+      return schema.parse(data);
+    } catch (err) {
+      if (isAxiosError(err) && err.response?.status === 404) {
+        return null;
+      }
+      if (isAxiosError(err)) {
+        throw new Error(getErrorMessage(err.response?.data, err.message));
+      }
+      throw err;
+    }
+  }
+
   return {
     get: <T>(schema: ZodType<T>, url: string) => request(schema, { url }),
+    getOrNull: <T>(schema: ZodType<T>, url: string) =>
+      requestOrNull(schema, { url }),
     post: <T>(schema: ZodType<T>, url: string, data: unknown) =>
       request(schema, { url, method: "POST", data }),
     delete: <T>(schema: ZodType<T>, url: string) =>
