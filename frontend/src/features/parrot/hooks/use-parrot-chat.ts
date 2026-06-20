@@ -39,14 +39,15 @@ export type ParrotThreadItem =
 function appendMessagesToHistory(
   previous: ChatHistoryResponse | undefined,
   pendingTurn: PendingTurn,
-  reply: string
+  reply: string,
+  userContent: string
 ): ChatHistoryResponse {
   return {
     guest_id: previous?.guest_id ?? pendingTurn.guestId,
     messages: [
       ...(previous?.messages ?? []),
       {
-        content: pendingTurn.message,
+        content: userContent,
         role: "user",
       },
       {
@@ -88,7 +89,13 @@ export function useParrotChat() {
 
       queryClient.setQueryData<ChatHistoryResponse>(
         [...PARROT_KEYS.HISTORY, variables.guestId],
-        (previous) => appendMessagesToHistory(previous, turn, result.reply)
+        (previous) =>
+          appendMessagesToHistory(
+            previous,
+            turn,
+            result.reply,
+            result.message ?? variables.message
+          )
       );
 
       setPendingTurn(null);

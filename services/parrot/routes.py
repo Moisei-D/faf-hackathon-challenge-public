@@ -11,6 +11,7 @@ from schemas import (
 )
 from history import ConversationStore
 from llm import chat, chat_stream
+from profanity import mask_profanity
 from tracing import request_id_ctx
 import admin
 
@@ -38,7 +39,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
 
     if req.guest_id:
         store.append(req.guest_id, new_messages)
-    return ChatResponse(reply=reply)
+    return ChatResponse(reply=reply, message=mask_profanity(req.message))
 
 
 @router.post("/chat/stream")
