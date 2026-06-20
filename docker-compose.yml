@@ -1,0 +1,145 @@
+# Full stack. Only the gateway is exposed (:8000); the frontend is on :5173.
+# Reset DBs: docker compose down -v && docker compose up --build
+
+services:
+  postgres:
+    image: public.ecr.aws/docker/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./services/beach/db/init/seed_activities.sql:/seed/seed_activities.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  broadcast:
+    build: ./services/broadcast
+    environment:
+      PORT: 3002
+      FE_TOKEN: ${FE_TOKEN}
+      HOTEL_TOKEN: ${HOTEL_TOKEN}
+      BEACH_TOKEN: ${BEACH_TOKEN}
+      AIRPORT_TOKEN: ${AIRPORT_TOKEN}
+      PARROT_TOKEN: ${PARROT_TOKEN}
+    restart: unless-stopped
+
+  airport:
+    build: ./services/airport
+    environment:
+      PORT: 3001
+      BROADCAST_SERVICE_URL: http://broadcast:3002
+      SIMULATION_START_TIME: ${SIMULATION_START_TIME}
+      GAME_SPEED: ${GAME_SPEED}
+      EU_GATES: ${EU_GATES}
+      ALL_GATES: ${ALL_GATES}
+      PROCESSING_TIME_EU: ${PROCESSING_TIME_EU}
+      PROCESSING_TIME_ALL: ${PROCESSING_TIME_ALL}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+    depends_on:
+      - broadcast
+    restart: unless-stopped
+
+  hotel:
+    build: ./services/hotel
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/hotel
+      AIRPORT_SERVICE_URL: http://airport:3001
+      BROADCAST_SERVICE_URL: http://broadcast:3002
+      SIMULATION_START_TIME: ${SIMULATION_START_TIME}
+      GAME_SPEED: ${GAME_SPEED}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      broadcast:
+        condition: service_started
+    restart: unless-stopped
+
+  beach:
+    build: ./services/beach
+    environment:
+      APP_PORT: 8080
+      JDBC_URL: jdbc:postgresql://postgres:5432/beach
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      BROADCAST_SERVICE_URL: http://broadcast:3002
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Parrot runs as a 2-instance pool (parrot + parrot-b); the gateway round-robins.
+  parrot: &parrot
+    build: ./services/parrot
+    environment:
+      PORT: 3003
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS}
+      LLM_TOP_P: ${LLM_TOP_P}
+      AIRPORT_SERVICE_URL: http://airport:3001
+      HOTEL_SERVICE_URL: http://hotel:3000
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+    depends_on:
+      - airport
+      - hotel
+    restart: unless-stopped
+
+  parrot-b:
+    <<: *parrot
+
+  gateway:
+    build: ./gateway
+    environment:
+      PORT: 8000
+      AIRPORT_SERVICE_URL: http://airport:3001
+      HOTEL_SERVICE_URL: http://hotel:3000
+      BEACH_SERVICE_URL: http://beach:8080
+      BROADCAST_SERVICE_URL: http://broadcast:3002
+      PARROT_SERVICE_URL: ${PARROT_SERVICE_URL:-http://parrot:3003,http://parrot-b:3003}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      ADMIN_PASSCODE: ${ADMIN_PASSCODE:-}
+      GATEWAY_CACHE_TTL: ${GATEWAY_CACHE_TTL:-0}
+      GATEWAY_RATE_LIMIT: ${GATEWAY_RATE_LIMIT:-0}
+      GATEWAY_RATE_WINDOW: ${GATEWAY_RATE_WINDOW:-1m}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - airport
+      - hotel
+      - beach
+      - broadcast
+      - parrot
+      - parrot-b
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_GATEWAY_URL: ${VITE_GATEWAY_URL:-http://localhost:8000}
+        VITE_MOCK: "false"
+        VITE_TRAFFIC_GENERATOR: ${VITE_TRAFFIC_GENERATOR:-off}
+        VITE_PARROT_CHAT_COOLDOWN_MS: ${VITE_PARROT_CHAT_COOLDOWN_MS:-30000}
+        VITE_ADMIN_PASSCODE: ${VITE_ADMIN_PASSCODE:-}
+        VITE_SIMULATION_START_TIME: ${SIMULATION_START_TIME}
+        VITE_GAME_SPEED: ${GAME_SPEED}
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+volumes:
+  pgdata:
