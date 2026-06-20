@@ -56,6 +56,8 @@ export const CancelReservationResponseSchema = z.object({
   status: z.literal("CANCELLED"),
 });
 
+export const ReservationHistorySchema = z.array(ReservationSchema);
+
 export type Room = z.infer<typeof RoomSchema>;
 export type RoomsResponse = z.infer<typeof RoomsResponseSchema>;
 export type Reservation = z.infer<typeof ReservationSchema>;

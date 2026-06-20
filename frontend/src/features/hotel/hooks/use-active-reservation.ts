@@ -20,10 +20,13 @@ export function useActiveReservation() {
   const mutation = useMutation({
     mutationFn: (id: string) => cancelReservation(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [...HOTEL_KEYS.RESERVATION],
-      });
+      if (guest) {
+        queryClient.setQueryData<null>([...HOTEL_KEYS.RESERVATION, guest.id], null);
+      }
+      queryClient.invalidateQueries({ queryKey: [...HOTEL_KEYS.RESERVATION, guest?.id] });
+      queryClient.invalidateQueries({ queryKey: [...HOTEL_KEYS.HISTORY, guest?.id] });
       queryClient.invalidateQueries({ queryKey: [...HOTEL_KEYS.ROOMS] });
+      toast.success("Reservation cancelled — see My bookings below.");
     },
     onError: (error) => {
       toast.error(error.message);

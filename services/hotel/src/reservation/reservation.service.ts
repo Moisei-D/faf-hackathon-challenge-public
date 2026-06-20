@@ -28,6 +28,23 @@ export class ReservationService {
       );
     }
 
+    // One active stay per guest: reject if they already have a confirmed
+    // reservation overlapping these dates (stops re-book from piling up rooms).
+    const overlappingForGuest = await this.prisma.reservation.count({
+      where: {
+        guest_id: createReservationDto.guest_id,
+        status: ReservationStatus.CONFIRMED,
+        check_in_day: { lte: createReservationDto.check_out_day },
+        check_out_day: { gte: createReservationDto.check_in_day },
+      },
+    });
+    if (overlappingForGuest > 0) {
+      throw new HttpException(
+        { error: 'Guest already has an active reservation for these dates' },
+        HttpStatus.CONFLICT,
+      );
+    }
+
     const rooms = await this.prisma.room.findMany({
       where: { type: createReservationDto.room_type },
       orderBy: { id: 'asc' },
@@ -160,6 +177,7 @@ export class ReservationService {
         FROM "Reservation" r
         JOIN "Room" rm ON rm.id = r.room_id
         WHERE r.guest_id = ${Prisma.raw(`'${guestId}'`)}
+          AND r.status = 'CONFIRMED'
         ORDER BY r.check_in_day DESC
         LIMIT 1
       `,
@@ -185,14 +203,30 @@ export class ReservationService {
     };
   }
 
-  async cancel(id: string): Promise<CancelReservationResponseDto> {
-    // id is UUID generated server-side, not user-controlled string
-    await this.prisma.$executeRaw(
-      Prisma.sql`UPDATE "Reservation" SET status = 'CANCELLED' WHERE id = ${Prisma.raw(`'${id}'`)}`,
-    );
+  // All reservations for a guest, active and cancelled, newest first.
+  async findAllByGuestId(guestId: string): Promise<ReservationResponseDto[]> {
+    const reservations = await this.prisma.reservation.findMany({
+      where: { guest_id: guestId },
+      include: { room: true },
+      orderBy: { check_in_day: 'desc' },
+    });
 
-    const existingReservation = await this.prisma.reservation.findFirst({
-      where: { id, status: ReservationStatus.CANCELLED },
+    return reservations.map((reservation) => ({
+      id: reservation.id,
+      guest_id: reservation.guest_id,
+      room_id: reservation.room_id,
+      room_type: reservation.room.type,
+      guest_count: reservation.guest_count,
+      check_in_day: reservation.check_in_day,
+      check_out_day: reservation.check_out_day,
+      status: reservation.status,
+    }));
+  }
+
+  async cancel(id: string): Promise<CancelReservationResponseDto> {
+    const existingReservation = await this.prisma.reservation.findUnique({
+      where: { id },
+      include: { room: true },
     });
 
     if (!existingReservation) {
@@ -202,8 +236,16 @@ export class ReservationService {
       );
     }
 
-    const reservation = await this.prisma.reservation.findUniqueOrThrow({
-      where: { id: existingReservation.id },
+    if (existingReservation.status === ReservationStatus.CANCELLED) {
+      throw new HttpException(
+        { error: 'Reservation already cancelled' },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const reservation = await this.prisma.reservation.update({
+      where: { id },
+      data: { status: ReservationStatus.CANCELLED },
       include: { room: true },
     });
 
