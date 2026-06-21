@@ -89,6 +89,7 @@ services:
       LLM_TOP_P: ${LLM_TOP_P}
       AIRPORT_SERVICE_URL: http://airport:3001
       HOTEL_SERVICE_URL: http://hotel:3000
+      BEACH_SERVICE_URL: http://beach:8080
       INTERNAL_SECRET: ${INTERNAL_SECRET:-}
     depends_on:
       - airport

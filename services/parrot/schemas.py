@@ -10,6 +10,8 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+    # The user's message after profanity masking, so the UI can show what was sent.
+    message: str = ""
 
 
 class Message(BaseModel):

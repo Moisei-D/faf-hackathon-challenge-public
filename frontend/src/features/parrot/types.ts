@@ -21,6 +21,8 @@ export const PostChatRequestSchema = z.object({
 
 export const PostChatResponseSchema = z.object({
   reply: z.string(),
+  // The masked version of the sent message; falls back to the raw text if absent.
+  message: z.string().optional(),
 });
 
 export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponseSchema>;

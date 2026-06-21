@@ -41,6 +41,17 @@ def register_routes(app):
         else:
             wait_time = game_now() - guest["queued_at"]
 
+        # Estimated game-seconds until this guest clears passport control, from
+        # their queue position and the gate's per-guest processing time.
+        eta = None
+        gate = app.gate_manager.gates.get(guest["gate"])
+        if guest["status"] == "processed":
+            eta = 0.0
+        elif gate is not None and guest["status"] == "processing":
+            eta = gate.processing_time
+        elif gate is not None and position is not None:
+            eta = position * gate.processing_time
+
         return jsonify({
             "guest_id": guest["guest_id"],
             "status": guest["status"],
@@ -49,6 +60,7 @@ def register_routes(app):
             "queued_at": guest["queued_at"],
             "processed_at": guest.get("processed_at"),
             "wait_time_seconds": wait_time,
+            "estimated_seconds_until_processed": eta,
         }), 200
 
     @app.route("/arrivals", methods=["GET"])

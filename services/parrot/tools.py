@@ -4,6 +4,7 @@ from services import (
     get_airport_stats,
     get_airport_queue_status,
     get_hotel_rooms,
+    get_beach_activities,
     get_guest_arrival_status,
     get_guest_reservation,
     get_guest_journey_status,
@@ -31,6 +32,14 @@ TOOL_SCHEMAS = [
         "function": {
             "name": "get_hotel_rooms",
             "description": "Get all hotel rooms with current availability, types, capacity, and pricing. Use this for any question that touches rooms, reservations, bookings, check-in/out, or how the hotel works — including general or definitional ones.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_beach_activities",
+            "description": "Get all beach activities with their capacity and how many spots remain. Use this for any question about the beach, activities, or available spots. There is no schedule, so it cannot tell when a full activity will free up.",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
@@ -85,6 +94,7 @@ _DISPATCH = {
     "get_airport_stats": lambda **_: get_airport_stats(),
     "get_airport_queue_status": lambda **_: get_airport_queue_status(),
     "get_hotel_rooms": lambda **_: get_hotel_rooms(),
+    "get_beach_activities": lambda **_: get_beach_activities(),
     "get_guest_arrival_status": lambda *, guest_id, **_: get_guest_arrival_status(guest_id),
     "get_guest_reservation": lambda *, guest_id, **_: get_guest_reservation(guest_id),
     "get_guest_journey_status": lambda *, guest_id, **_: get_guest_journey_status(guest_id),
